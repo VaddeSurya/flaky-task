@@ -1,10 +1,15 @@
 import { test, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
 import fs from 'fs';
 import users from './user-data/src/data';
-import { run } from './client.js';
-
+// import { run } from './client.js';
+const axios = require('axios');
 const ids = users.map(u => u.user_id);
+
+async function run() {
+  vi.resetModules();                         
+  await import('./client.js');               
+  await new Promise(r => setTimeout(r, 0)); 
+}
 
 beforeEach(() => {
   vi.spyOn(fs, 'existsSync').mockReturnValue(false);
