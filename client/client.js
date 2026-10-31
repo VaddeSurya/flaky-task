@@ -25,29 +25,55 @@
  */
 
 
-  const { default: axios, isAxiosError } = require('axios');
-  // const data=require('./user-data/src/data');
-  import data from './user'
-  const api="http://localhost:7676/"
+const { default: axios, isAxiosError } = require('axios');
+const fs = require('fs');
 
-  let remaining=[];
-  function postingData(eachUser){
-    axios.post(api,eachUser).then(res =>{
-      const id=eachUser.user_id;
-      console.log(id);
-      remaining.push(id);
-      // console.log(eachUser.user_id);
-    })
-    .catch(error => {
-      // if(error.response.status){
-      //   return postingData(eachUser);
-      // }
-      console.log(error.response.status)
-    })
+const data = require('./user-data/src/data');
+// import data from './user'
+
+const api = "http://localhost:7676/";
+// console.log(data.default);
+
+let remaining = [];
+
+if (fs.existsSync('./saved-users.json')) {
+  remaining = JSON.parse(fs.readFileSync('./saved-users.json'));
+}
+
+function postingData(eachUser) {
+
+  if (remaining.includes(eachUser.user_id)) {
+    console.log(`User ${eachUser.user_id} already saved`);
+    return;
   }
-console.log(remaining)
 
-  data.USERS.forEach(element => {
-    postingData(element)
-  });
+  axios.post(api, eachUser).then(res => {
 
+    const id = eachUser.user_id;
+    remaining.push(id);
+
+    fs.writeFileSync('./saved-users.json', JSON.stringify(remaining));
+
+    // console.log(id);
+    // console.log(eachUser.user_id);
+
+  })
+  .catch(error => {
+  // fs.writeFileSync('./saved-users.json', JSON.stringify(remaining));
+
+    if (error.response && error.response.status === 500) {
+      console.log(`User ${eachUser.user_id} failed. Retry next run.`);
+    }
+
+    // if(error.response.status){
+    //   return postingData(eachUser);
+    // }
+    // console.log(error.response.status)
+  })
+}
+
+// console.log(remaining)
+
+data.default.forEach(element => {
+  postingData(element);
+});
