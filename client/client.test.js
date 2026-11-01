@@ -1,40 +1,54 @@
-import { test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import users from './user-data/src/data';
-// import { run } from './client.js';
+
 const axios = require('axios');
 const ids = users.map(u => u.user_id);
 
-async function run() {
-  vi.resetModules();                         
-  await import('./client.js');               
-  await new Promise(r => setTimeout(r, 0)); 
+const real = {
+  post: axios.post,
+  existsSync: fs.existsSync,
+  readFileSync: fs.readFileSync,
+  writeFileSync: fs.writeFileSync,
+};
+
+async function runClient() {
+  vi.resetModules();
+  await import('./client.js');
+  await new Promise(r => setTimeout(r, 0));
 }
 
-beforeEach(() => {
-  vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-  vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
-});
+describe('client.js', () => {
+  beforeEach(() => {
+    fs.existsSync = vi.fn(() => false);
+    fs.writeFileSync = vi.fn();
+  });
 
-afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    axios.post = real.post;
+    fs.existsSync = real.existsSync;
+    fs.readFileSync = real.readFileSync;
+    fs.writeFileSync = real.writeFileSync;
+  });
 
-test('saves all users on 200', async () => {
-  const post = vi.spyOn(axios, 'post').mockResolvedValue({ status: 200 });
-  await run();
-  expect(post).toHaveBeenCalledTimes(users.length);
-  expect(fs.writeFileSync).toHaveBeenLastCalledWith('./saved-users.json', JSON.stringify(ids));
-});
+  it('saves all users on 200', async () => {
+    axios.post = vi.fn(() => Promise.resolve({}));
+    await runClient();
+    expect(axios.post).toHaveBeenCalledTimes(users.length);
+    expect(fs.writeFileSync).toHaveBeenLastCalledWith('./saved-users.json', JSON.stringify(ids));
+  });
 
-test('saves nothing on 500', async () => {
-  vi.spyOn(axios, 'post').mockRejectedValue({ response: { status: 500 } });
-  await run();
-  expect(fs.writeFileSync).not.toHaveBeenCalled();
-});
+  it('saves nothing on 500', async () => {
+    axios.post = vi.fn(() => Promise.reject({ response: { status: 500 } }));
+    await runClient();
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
 
-test('skips already saved users', async () => {
-  fs.existsSync.mockReturnValue(true);
-  vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(ids));
-  const post = vi.spyOn(axios, 'post').mockResolvedValue({ status: 200 });
-  await run();
-  expect(post).not.toHaveBeenCalled();
+  it('skips saved users', async () => {
+    fs.existsSync = vi.fn(() => true);
+    fs.readFileSync = vi.fn(() => JSON.stringify(ids));
+    axios.post = vi.fn(() => Promise.resolve({}));
+    await runClient();
+    expect(axios.post).not.toHaveBeenCalled();
+  });
 });
